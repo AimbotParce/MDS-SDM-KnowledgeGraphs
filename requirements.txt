@@ -2,3 +2,6 @@ rdflib==7.1.4
 pydotplus==2.0.2
 graphviz==0.20.3
 matplotlib==3.10.3
+requests==2.32.4
+tqdm==4.67.1
+more-itertools==10.7.0
