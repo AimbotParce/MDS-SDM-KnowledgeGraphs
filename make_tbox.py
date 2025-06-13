@@ -9,8 +9,8 @@ def make_tbox(add_type_axioms: bool = True) -> Graph:
     g.bind("rdf", RDF)
     g.bind("rdfs", RDFS)
     g.bind("xsd", XSD)
-    # P = Namespace("http://localhost:7200/academia-sdm#")
-    P = Namespace("upc:")
+    P = Namespace("http://localhost:7200/academia-sdm#")
+    # P = Namespace("upc:")
     g.bind("p", P)
 
     # Classes
@@ -169,5 +169,6 @@ def make_tbox(add_type_axioms: bool = True) -> Graph:
 
 if __name__ == "__main__":
     g = make_tbox(add_type_axioms=False)
+    g.serialize("tbox.ttl", format="turtle")
     visualize_rdfs(g)
     save_rdfs_visualization(g, "img/tbox.png")
