@@ -26,7 +26,7 @@ def yieldFromJSONLFiles(files: List[Path]):
 
 
 def load_paper(g: Graph, namespace: Namespace, paper: RawPaper, add_type_axioms: bool = True) -> None:
-    if not "paperId" in paper or paper["paperId"] is None:
+    if not "paperId" in paper or paper["paperId"] is None or paper["paperId"] == "":
         logger.error(f"Paper has no id: {paper}")
         return
     P = namespace  # To simplify the code
@@ -152,11 +152,24 @@ def load_paper(g: Graph, namespace: Namespace, paper: RawPaper, add_type_axioms:
 
 
 def load_reference(g: Graph, namespace: Namespace, reference: RawReference, add_type_axioms: bool = True) -> None:
-    if not "citedPaper" in reference or reference["citedPaper"] is None:
-        logger.error(f"Reference has no cited paper: {reference}")
+    def check(ref: Dict, key: str) -> bool:
+        if key not in ref or ref[key] is None:
+            logger.error(f"Reference {reference['referenceId']} has no {key}.")
+            return False
+        if ref[key] == "":
+            logger.error(f"Reference {reference['referenceId']} has an empty {key}.")
+            return False
+        if not "paperId" in ref[key] or ref[key]["paperId"] is None:
+            logger.error(f"Reference {reference['referenceId']} has no {key} paper id.")
+            return False
+        if ref[key]["paperId"] == "":
+            logger.error(f"Reference {reference['referenceId']} has an empty {key} paper id.")
+            return False
+        return True
+
+    if not check(reference, "citedPaper"):
         return
-    if not "citingPaper" in reference or reference["citingPaper"] is None:
-        logger.error(f"Reference has no citing paper: {reference}")
+    if not check(reference, "citingPaper"):
         return
     P = namespace  # To simplify the code
     cited_paper_uri = P[reference["citedPaper"]["paperId"]]
