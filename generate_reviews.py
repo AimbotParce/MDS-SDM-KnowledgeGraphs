@@ -7,6 +7,7 @@ import logging
 import os
 import random
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Dict, Iterable, List
 
@@ -15,57 +16,55 @@ from rdflib import Graph, Literal, URIRef
 from rdflib.namespace import RDF, RDFS, XSD, Namespace
 from rdflib.plugins.stores.sparqlstore import SPARQLUpdateStore
 
+# The following query gives a list of all possible reviewers for each paper,
+# excluding the authors of the paper itself. However, it is too slow to run
+# on the entire graph, so we'll go one paper at a time.
+# q = (
+#     "select ?paper (GROUP_CONCAT(DISTINCT ?reviewer; SEPARATOR=) AS ?reviewers) where {",
+#     "    ?reviewer P:writesPaper ?paper2 ."
+#     "    ?paper2 a P:Paper ;"
+#     "        P:paperIsAbout ?topic ."
+#     "    ?paper a P:Paper ;"
+#     "        P:paperIsAbout ?topic ."
+#     "    ?topic a P:PaperTopic ."
+#     "    FILTER NOT EXISTS { ?reviewer P:writesPaper ?paper }"
+#     "} GROUP BY ?paper",
+# )
 
-def generate_reviews(rg: Graph, wg: Graph, P: Namespace, add_type_axioms: bool = True):
+
+def generate_paper_reviews(paper: URIRef, rg: Graph, wg: Graph, P: Namespace, add_type_axioms: bool = True):
     """
-    For each paper, generate between 1 and 5 reviews.
+    For a paper, generate between 3 and 8 reviews.
     Reviews are made by randomly selecting a subset of authors
     of papers that share the same topic, but not the same paper.
     (Paper) -[hasTopic]-> (Topic) <-[hasTopic]- (Paper2) <-[writes]- (Author2)
     Such that there isn't an edge (Author2) -[writes]-> (Paper).
     """
-
-    # The following query gives a list of all possible reviewers for each paper,
-    # excluding the authors of the paper itself. However, it is too slow to run
-    # on the entire graph, so we'll go one paper at a time.
-    # q = (
-    #     "select ?paper (GROUP_CONCAT(DISTINCT ?reviewer; SEPARATOR=) AS ?reviewers) where {",
-    #     "    ?reviewer P:writesPaper ?paper2 ."
-    #     "    ?paper2 a P:Paper ;"
-    #     "        P:paperIsAbout ?topic ."
-    #     "    ?paper a P:Paper ;"
-    #     "        P:paperIsAbout ?topic ."
-    #     "    ?topic a P:PaperTopic ."
-    #     "    FILTER NOT EXISTS { ?reviewer P:writesPaper ?paper }"
-    #     "} GROUP BY ?paper",
-    # )
-
-    for paper in rg.subjects(RDF.type, P.Paper):
-        q = (
-            "SELECT DISTINCT ?reviewer WHERE {\n"
-            "    ?reviewer P:writesPaper ?paper2 .\n"
-            "    ?paper2 a P:Paper ;\n"
-            "        P:paperIsAbout ?topic .\n"
-            f"    <{paper}> a P:Paper ;\n"
-            "        P:paperIsAbout ?topic .\n"
-            "    ?topic a P:PaperTopic .\n"
-            f"    FILTER NOT EXISTS {{ ?reviewer P:writesPaper <{paper}> }}\n"
-            "} LIMIT 100"  # Limit to 100 reviewers to avoid performance issues
-        )
-        reviewers = list(rg.query(q))
-        logger.info(f"Found {len(reviewers)} potential reviewers for paper {paper}")
-        # Select a random subset of reviewers
-        num_reviews = random.randint(1, 5)
-        selected_reviewers = random.sample(reviewers, min(num_reviews, len(reviewers)))
-        for reviewer in selected_reviewers:
-            reviewer_uri = reviewer.reviewer
-            review_uri = P[str(uuid.uuid4())]
-            if add_type_axioms:
-                wg.add((review_uri, RDF.type, P.Review))
-            wg.add((reviewer_uri, P.writesReview, review_uri))
-            wg.add((review_uri, P.reviewIsAbout, paper))
-            wg.add((review_uri, P.reviewContent, Literal(f"Review for {paper}", datatype=XSD.string)))
-            wg.add((review_uri, P.reviewVerdict, Literal(random.choice([True, False]), datatype=XSD.boolean)))
+    q = (
+        "SELECT DISTINCT ?reviewer WHERE {\n"
+        "    ?reviewer P:writesPaper ?paper2 .\n"
+        "    ?paper2 a P:Paper ;\n"
+        "        P:paperIsAbout ?topic .\n"
+        f"    <{paper}> a P:Paper ;\n"
+        "        P:paperIsAbout ?topic .\n"
+        "    ?topic a P:PaperTopic .\n"
+        f"    FILTER NOT EXISTS {{ ?reviewer P:writesPaper <{paper}> }}\n"
+        "} LIMIT 100"  # Limit to 100 reviewers to avoid performance issues
+    )
+    reviewers = list(rg.query(q))
+    logger.info(f"Found {len(reviewers)} potential reviewers for paper {paper}")
+    # Select a random subset of reviewers
+    num_reviews = random.randint(3, 8)
+    selected_reviewers = random.sample(reviewers, min(num_reviews, len(reviewers)))
+    for reviewer in selected_reviewers:
+        reviewer_uri = reviewer.reviewer
+        review_uri = P[str(uuid.uuid4())]
+        if add_type_axioms:
+            wg.add((review_uri, RDF.type, P.Review))
+        wg.add((reviewer_uri, P.writesReview, review_uri))
+        wg.add((review_uri, P.reviewIsAbout, paper))
+        wg.add((review_uri, P.reviewContent, Literal(f"Review for {paper}", datatype=XSD.string)))
+        wg.add((review_uri, P.reviewVerdict, Literal(random.choice([True, False]), datatype=XSD.boolean)))
 
 
 logger = logging.getLogger(__name__)
@@ -122,4 +121,10 @@ if __name__ == "__main__":
     wg.bind("rdfs", RDFS)
     wg.bind("xsd", XSD)
 
-    generate_reviews(rg, wg, P, add_type_axioms=args.add_type_axioms)
+    papers = rg.subjects(RDF.type, P.Paper)
+
+    max_workers = os.cpu_count() or 1
+    logger.info(f"Using {max_workers} worker threads for loading papers and references.")
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        for paper in papers:
+            executor.submit(generate_paper_reviews, paper, rg, wg, P, add_type_axioms=args.add_type_axioms)
