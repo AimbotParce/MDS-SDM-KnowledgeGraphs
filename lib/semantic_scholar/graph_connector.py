@@ -298,7 +298,7 @@ class S2GraphAPI(SemanticScholarAPI):
 
         def _paginate() -> Generator[List[Dict], None, None]:
             data = self.get(f"paper/{paper_id}/references", params=params)
-            yield data["data"]
+            yield data["data"] or []  # Ensure we yield an empty list if no references are found
             while data.get("next"):
                 if data.get("next") >= self.MAX_DATA_RETRIEVAL - 1:
                     # This seems to be a hard limit of the Semantic Scholar API
@@ -315,7 +315,7 @@ class S2GraphAPI(SemanticScholarAPI):
                         "limit": min(self.MAX_BATCH_SIZE, self.MAX_DATA_RETRIEVAL - data["next"] - 1),
                     },
                 )
-                yield data["data"]
+                yield data["data"] or []  # Ensure we yield an empty list if no references are found
 
         def _generator():
             for data in _paginate():

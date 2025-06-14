@@ -1,19 +1,15 @@
-from rdflib import Graph
+import logging
+from pathlib import Path
+
+from rdflib import Graph, URIRef
 from rdflib.namespace import RDF, RDFS, XSD, Namespace
+from rdflib.plugins.stores.sparqlstore import SPARQLUpdateStore
 
 from lib.graph_viz import save_rdfs_visualization, visualize_rdfs
 
 
-def make_tbox(add_type_axioms: bool = True) -> Graph:
-    g = Graph()
-    g.bind("rdf", RDF)
-    g.bind("rdfs", RDFS)
-    g.bind("xsd", XSD)
-    P = Namespace("http://localhost:7200/academia-sdm#")
-    # P = Namespace("upc:")
-    g.bind("p", P)
-
-    # Classes
+def add_tbox(g: Graph, namespace: Namespace, add_type_axioms: bool = True):
+    P = namespace  # To simplify the code
 
     if add_type_axioms:
         g.add((P.Author, RDF.type, RDFS.Class))
@@ -41,7 +37,7 @@ def make_tbox(add_type_axioms: bool = True) -> Graph:
         g.add((P.isProceedingsOfConference, RDF.type, RDF.Property))
         g.add((P.isProceedingsOfWorkshop, RDF.type, RDF.Property))
         g.add((P.isPublishedIn, RDF.type, RDF.Property))
-        g.add((P.isPublishedInJournal, RDF.type, RDF.Property))
+        g.add((P.isPublishedInJournalVolume, RDF.type, RDF.Property))
         g.add((P.isPublishedInProceedings, RDF.type, RDF.Property))
         g.add((P.isVolumeOf, RDF.type, RDF.Property))
         g.add((P.paperCites, RDF.type, RDF.Property))
@@ -68,9 +64,9 @@ def make_tbox(add_type_axioms: bool = True) -> Graph:
     g.add((P.isPublishedIn, RDFS.domain, P.Paper))
     g.add((P.isPublishedIn, RDFS.range, P.PublicationVenue))
 
-    g.add((P.isPublishedInJournal, RDFS.subPropertyOf, P.isPublishedIn))
-    g.add((P.isPublishedInJournal, RDFS.domain, P.Paper))
-    g.add((P.isPublishedInJournal, RDFS.range, P.Journal))
+    g.add((P.isPublishedInJournalVolume, RDFS.subPropertyOf, P.isPublishedIn))
+    g.add((P.isPublishedInJournalVolume, RDFS.domain, P.Paper))
+    g.add((P.isPublishedInJournalVolume, RDFS.range, P.JournalVolume))
 
     g.add((P.isPublishedInProceedings, RDFS.subPropertyOf, P.isPublishedIn))
     g.add((P.isPublishedInProceedings, RDFS.domain, P.Paper))
@@ -102,12 +98,13 @@ def make_tbox(add_type_axioms: bool = True) -> Graph:
 
     if add_type_axioms:
         g.add((P.authorName, RDF.type, RDF.Property))
-        g.add((P.reviewVeredict, RDF.type, RDF.Property))
+        g.add((P.reviewVerdict, RDF.type, RDF.Property))
         g.add((P.reviewContent, RDF.type, RDF.Property))
         g.add((P.paperTitle, RDF.type, RDF.Property))
         g.add((P.paperAbstract, RDF.type, RDF.Property))
         g.add((P.paperContent, RDF.type, RDF.Property))
         g.add((P.topicKeyword, RDF.type, RDF.Property))
+        g.add((P.venueName, RDF.type, RDF.Property))
         g.add((P.journalName, RDF.type, RDF.Property))
         g.add((P.journalVolumeNumber, RDF.type, RDF.Property))
         g.add((P.journalVolumeYear, RDF.type, RDF.Property))
@@ -120,8 +117,8 @@ def make_tbox(add_type_axioms: bool = True) -> Graph:
     g.add((P.authorName, RDFS.domain, P.Author))
     g.add((P.authorName, RDFS.range, XSD.string))
 
-    g.add((P.reviewVeredict, RDFS.domain, P.Review))
-    g.add((P.reviewVeredict, RDFS.range, XSD.boolean))
+    g.add((P.reviewVerdict, RDFS.domain, P.Review))
+    g.add((P.reviewVerdict, RDFS.range, XSD.boolean))
 
     g.add((P.reviewContent, RDFS.domain, P.Review))
     g.add((P.reviewContent, RDFS.range, XSD.string))
@@ -138,6 +135,10 @@ def make_tbox(add_type_axioms: bool = True) -> Graph:
     g.add((P.topicKeyword, RDFS.domain, P.PaperTopic))
     g.add((P.topicKeyword, RDFS.range, XSD.string))
 
+    g.add((P.venueName, RDFS.domain, P.PublicationVenue))
+    g.add((P.venueName, RDFS.range, XSD.string))
+
+    g.add((P.journalName, RDFS.subPropertyOf, P.venueName))
     g.add((P.journalName, RDFS.domain, P.Journal))
     g.add((P.journalName, RDFS.range, XSD.string))
 
@@ -164,11 +165,62 @@ def make_tbox(add_type_axioms: bool = True) -> Graph:
     g.add((P.workshopName, RDFS.domain, P.Workshop))
     g.add((P.workshopName, RDFS.range, XSD.string))
 
-    return g
-
 
 if __name__ == "__main__":
-    g = make_tbox(add_type_axioms=False)
-    g.serialize("tbox.ttl", format="turtle")
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Load paper data into an RDFS graph.")
+    parser.add_argument("--host", type=str, default="localhost", help="SPARQL endpoint host")
+    parser.add_argument("--port", type=int, default=7200, help="SPARQL endpoint port")
+    parser.add_argument("--repository", type=str, default="academia-sdm", help="SPARQL repository name")
+    parser.add_argument(
+        "--graph-name",
+        type=str,
+        default=None,
+        help="Graph name to use in the SPARQL store. If none, defaults to '<repo_url>/default'.",
+    )
+    parser.add_argument(
+        "--namespace",
+        type=str,
+        default=None,
+        help="Namespace URI to use for the RDF graph. If none, defaults to '<graph_url>/ontology#'.",
+    )
+    parser.add_argument(
+        "--add-type-axioms",
+        action="store_true",
+        help="If set, adds type axioms for the properties and classes in the ontology.",
+    )
+    parser.add_argument(
+        "--save",
+        type=Path,
+        default=None,
+        help="If provided, saves the generated TBox to this file in Turtle format.",
+    )
+
+    args = parser.parse_args()
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="(%(asctime)s) %(levelname)s@%(name)s.%(funcName)s:%(lineno)d # %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    repo_url = f"http://{args.host}:{args.port}/repositories/{args.repository}"
+    update_url = f"http://{args.host}:{args.port}/repositories/{args.repository}/statements"
+
+    store = SPARQLUpdateStore()
+    store.open((repo_url, update_url))
+    g = Graph(store=store, identifier=URIRef(args.graph_name or f"{repo_url}/default"))
+    P = Namespace(args.namespace or f"{repo_url}/default/ontology#")
+
+    g.bind("P", P)
+    g.bind("rdf", RDF)
+    g.bind("rdfs", RDFS)
+    g.bind("xsd", XSD)
+
+    add_tbox(g, P, add_type_axioms=args.add_type_axioms)
+
+    if args.save is not None:
+        g.serialize(args.save, format="turtle")
     visualize_rdfs(g)
     save_rdfs_visualization(g, "img/tbox.png")
