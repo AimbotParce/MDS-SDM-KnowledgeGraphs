@@ -138,7 +138,6 @@ def add_tbox(g: Graph, namespace: Namespace, add_type_axioms: bool = True):
     g.add((P.venueName, RDFS.domain, P.PublicationVenue))
     g.add((P.venueName, RDFS.range, XSD.string))
 
-    g.add((P.journalName, RDFS.subPropertyOf, P.venueName))
     g.add((P.journalName, RDFS.domain, P.Journal))
     g.add((P.journalName, RDFS.range, XSD.string))
 
