@@ -1,0 +1,109 @@
+@prefix P: <http://localhost:7200/academia-sdm#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+P:authorName rdfs:domain P:Author ;
+    rdfs:range xsd:string .
+
+P:cityName rdfs:domain P:City ;
+    rdfs:range xsd:string .
+
+P:conferenceName rdfs:domain P:Conference ;
+    rdfs:range xsd:string ;
+    rdfs:subPropertyOf P:scientificForumName .
+
+P:editionWasHeldIn rdfs:domain P:Proceedings ;
+    rdfs:range P:City .
+
+P:isCorrespondingAuthor rdfs:domain P:Author ;
+    rdfs:range P:Paper ;
+    rdfs:subPropertyOf P:writesPaper .
+
+P:isProceedingsOfConference rdfs:domain P:Proceedings ;
+    rdfs:range P:Conference ;
+    rdfs:subPropertyOf P:isProceedingsOf .
+
+P:isProceedingsOfWorkshop rdfs:domain P:Proceedings ;
+    rdfs:range P:Workshop ;
+    rdfs:subPropertyOf P:isProceedingsOf .
+
+P:isPublishedInJournalVolume rdfs:domain P:Paper ;
+    rdfs:range P:JournalVolume ;
+    rdfs:subPropertyOf P:isPublishedIn .
+
+P:isPublishedInProceedings rdfs:domain P:Paper ;
+    rdfs:range P:Proceedings ;
+    rdfs:subPropertyOf P:isPublishedIn .
+
+P:isVolumeOf rdfs:domain P:JournalVolume ;
+    rdfs:range P:Journal .
+
+P:journalName rdfs:domain P:Journal ;
+    rdfs:range xsd:string .
+
+P:journalVolumeNumber rdfs:domain P:JournalVolume ;
+    rdfs:range xsd:unsignedInt .
+
+P:journalVolumeYear rdfs:domain P:JournalVolume ;
+    rdfs:range xsd:unsignedInt .
+
+P:paperAbstract rdfs:domain P:Paper ;
+    rdfs:range xsd:string .
+
+P:paperCites rdfs:domain P:Paper ;
+    rdfs:range P:Paper .
+
+P:paperContent rdfs:domain P:Paper ;
+    rdfs:range xsd:string .
+
+P:paperIsAbout rdfs:domain P:Paper ;
+    rdfs:range P:PaperTopic .
+
+P:paperTitle rdfs:domain P:Paper ;
+    rdfs:range xsd:string .
+
+P:proceedingsYear rdfs:domain P:Proceedings ;
+    rdfs:range xsd:unsignedInt .
+
+P:reviewContent rdfs:domain P:Review ;
+    rdfs:range xsd:string .
+
+P:reviewIsAbout rdfs:domain P:Review ;
+    rdfs:range P:Paper .
+
+P:reviewVerdict rdfs:domain P:Review ;
+    rdfs:range xsd:boolean .
+
+P:topicKeyword rdfs:domain P:PaperTopic ;
+    rdfs:range xsd:string .
+
+P:venueName rdfs:domain P:PublicationVenue ;
+    rdfs:range xsd:string .
+
+P:workshopName rdfs:domain P:Workshop ;
+    rdfs:range xsd:string ;
+    rdfs:subPropertyOf P:scientificForumName .
+
+P:writesReview rdfs:domain P:Author ;
+    rdfs:range P:Review .
+
+P:writesPaper rdfs:domain P:Author ;
+    rdfs:range P:Paper .
+
+P:Conference rdfs:subClassOf P:ScientificForum .
+
+P:Workshop rdfs:subClassOf P:ScientificForum .
+
+P:isProceedingsOf rdfs:domain P:Proceedings ;
+    rdfs:range P:ScientificForum .
+
+P:isPublishedIn rdfs:domain P:Paper ;
+    rdfs:range P:PublicationVenue .
+
+P:scientificForumName rdfs:domain P:ScientificForum ;
+    rdfs:range xsd:string .
+
+P:JournalVolume rdfs:subClassOf P:PublicationVenue .
+
+P:Proceedings rdfs:subClassOf P:PublicationVenue .
+
