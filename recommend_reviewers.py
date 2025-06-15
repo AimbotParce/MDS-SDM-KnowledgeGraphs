@@ -357,6 +357,11 @@ if __name__ == "__main__":
         logger.error("No authors found in the graph.")
         exit(1)
     logger.info(f"Found {len(authors)} authors in the graph.")
+
+    # Filter out the authors who are already in the paper's authors list
+    paper_authors = set(uri_str(P[a]) for a in paper_info["authors"])
+    authors = authors - paper_authors
+
     best_auth, best_auth_dist = get_k_nearest(potential_reviewer_embedding, model, ent_to_id, authors, k=10)
     if not best_auth:
         logger.error("No potential reviewers found.")
